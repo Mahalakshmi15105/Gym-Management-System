@@ -1,0 +1,345 @@
+/**
+ * Responsive Design Styles for Super Admin Interface
+ * Mobile-first approach with progressive enhancement
+ */
+
+/* Mobile-first base styles */
+@media (max-width: 640px) {
+  /* Hide sidebar on mobile by default */
+  .sidebar-desktop {
+    display: none;
+  }
+  
+  /* Mobile sidebar overlay */
+  .sidebar-mobile {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+  
+  .sidebar-mobile.open {
+    transform: translateX(0);
+  }
+  
+  .sidebar-content {
+    width: 280px;
+    height: 100%;
+    background: white;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Mobile navigation header */
+  .mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+  
+  /* Super Admin dashboard mobile layout */
+  .dashboard-grid-mobile {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  
+  /* Metric cards mobile layout */
+  .metric-card-mobile {
+    padding: 1rem;
+    text-align: center;
+  }
+  
+  .metric-card-mobile .metric-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+  
+  .metric-card-mobile .metric-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+  
+  /* Data tables mobile layout */
+  .table-mobile {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  .table-mobile table {
+    width: 100%;
+    min-width: 600px;
+  }
+  
+  /* Alternative mobile table - card layout */
+  .table-cards-mobile {
+    display: block;
+  }
+  
+  .table-cards-mobile .table-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .table-card-header {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  .table-card-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    font-size: 0.875rem;
+  }
+  
+  .table-card-label {
+    color: #6b7280;
+    font-weight: 500;
+  }
+  
+  .table-card-value {
+    color: #111827;
+  }
+  
+  /* Mobile form layouts */
+  .form-mobile {
+    padding: 1rem;
+  }
+  
+  .form-mobile .form-group {
+    margin-bottom: 1rem;
+  }
+  
+  .form-mobile label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #374151;
+  }
+  
+  .form-mobile input,
+  .form-mobile select,
+  .form-mobile textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+  
+  /* Mobile buttons */
+  .button-mobile {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border-radius: 6px;
+    font-weight: 600;
+    text-align: center;
+  }
+  
+  .button-group-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .button-group-mobile.horizontal {
+    flex-direction: row;
+  }
+  
+  .button-group-mobile.horizontal .button-mobile {
+    flex: 1;
+  }
+  
+  /* Mobile modals */
+  .modal-mobile {
+    margin: 1rem;
+    width: calc(100% - 2rem);
+    max-width: none;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+  
+  /* Mobile charts */
+  .chart-mobile {
+    height: 200px;
+    margin: 1rem 0;
+  }
+  
+  /* Touch-friendly interactions */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Mobile-specific spacing */
+  .mobile-spacing {
+    padding: 1rem;
+  }
+  
+  .mobile-spacing-sm {
+    padding: 0.5rem;
+  }
+  
+  .mobile-spacing-lg {
+    padding: 1.5rem;
+  }
+}
+
+/* Tablet styles */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .dashboard-grid-tablet {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    padding: 1.5rem;
+  }
+  
+  .table-tablet {
+    overflow-x: auto;
+  }
+  
+  .sidebar-tablet {
+    width: 200px;
+  }
+  
+  .main-content-tablet {
+    margin-left: 200px;
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1025px) {
+  .sidebar-mobile {
+    display: none;
+  }
+  
+  .mobile-header {
+    display: none;
+  }
+  
+  .dashboard-grid-desktop {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    padding: 2rem;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .icon-hd {
+    /* Use high-resolution icons */
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .mobile-landscape {
+    height: 100vh;
+    overflow-y: auto;
+  }
+  
+  .mobile-header {
+    padding: 0.5rem 1rem;
+  }
+  
+  .dashboard-grid-mobile {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 0.5rem;
+  }
+}
+
+/* Print styles for reports */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  body {
+    font-size: 12pt;
+    line-height: 1.4;
+  }
+  
+  .page-break {
+    page-break-before: always;
+  }
+  
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .dark-mode-auto {
+    background-color: #1f2937;
+    color: #f9fafb;
+  }
+  
+  .dark-mode-auto .card {
+    background-color: #374151;
+    border-color: #4b5563;
+  }
+}
+
+/* Focus indicators for keyboard navigation */
+.focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+/* Loading states for mobile */
+.loading-mobile {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #f97316;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

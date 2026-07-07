@@ -61,8 +61,19 @@ def super_admin_required(f):
             
             # Get user role from JWT claims
             user_role = get_current_user_role()
+            user_id = get_current_user_id()
             
             if user_role != 'super_admin':
+                # Log unauthorized access attempt
+                from app.activity_logging import ActivityLogger
+                ActivityLogger.log_activity(
+                    'access_denied',
+                    f"Unauthorized Super Admin access attempt",
+                    severity='warning',
+                    user_id=user_id,
+                    extra_data={'required_role': 'super_admin', 'actual_role': user_role}
+                )
+                
                 return jsonify({
                     'error': 'Super Admin access required',
                     'code': 'SUPER_ADMIN_REQUIRED',
@@ -79,6 +90,10 @@ def super_admin_required(f):
             }), 401
             
     return decorated_function
+
+
+# Alias for backward compatibility with validation scripts
+require_super_admin = super_admin_required
 
 
 def gym_owner_or_admin_required(f):
@@ -99,8 +114,19 @@ def gym_owner_or_admin_required(f):
             
             # Get user role from JWT claims
             user_role = get_current_user_role()
+            user_id = get_current_user_id()
             
             if user_role not in ['gym_owner', 'super_admin']:
+                # Log unauthorized access attempt
+                from app.activity_logging import ActivityLogger
+                ActivityLogger.log_activity(
+                    'access_denied',
+                    f"Unauthorized gym owner/admin access attempt",
+                    severity='warning',
+                    user_id=user_id,
+                    extra_data={'required_roles': ['gym_owner', 'super_admin'], 'actual_role': user_role}
+                )
+                
                 return jsonify({
                     'error': 'Insufficient privileges',
                     'code': 'INSUFFICIENT_PRIVILEGES',
@@ -153,6 +179,25 @@ def require_gym_access(gym_id):
         tuple: (None, None) if access allowed, (error_response, status_code) if denied
     """
     if not validate_gym_access(gym_id):
+        # Log unauthorized gym access attempt
+        user_id = get_current_user_id()
+        user_role = get_current_user_role()
+        current_gym_id = get_current_gym_id()
+        
+        from app.activity_logging import ActivityLogger
+        ActivityLogger.log_activity(
+            'access_denied',
+            f"Unauthorized gym access attempt to gym {gym_id}",
+            severity='warning',
+            user_id=user_id,
+            gym_id=current_gym_id,
+            extra_data={
+                'requested_gym_id': gym_id,
+                'user_gym_id': current_gym_id,
+                'user_role': user_role
+            }
+        )
+        
         return jsonify({
             'error': 'Access denied',
             'code': 'GYM_ACCESS_DENIED',
@@ -160,6 +205,39 @@ def require_gym_access(gym_id):
         }), 403
         
     return None, None
+
+
+def log_authentication_event(action, user_id, success=True, details=None, extra_data=None):
+    """
+    Log authentication events with detailed context.
+    
+    Args:
+        action (str): Authentication action (login, logout, token_refresh, etc.)
+        user_id (int): User ID performing the action
+        success (bool): Whether the action was successful
+        details (str, optional): Additional details about the event
+        extra_data (dict, optional): Additional metadata
+    """
+    from app.activity_logging import ActivityLogger
+    
+    severity = 'info' if success else 'warning'
+    description = f"Authentication: {action}"
+    
+    if details:
+        description += f" - {details}"
+    
+    if not success:
+        description += " (FAILED)"
+    
+    log_extra_data = {
+        'success': success,
+        'auth_action': action
+    }
+    
+    if extra_data:
+        log_extra_data.update(extra_data)
+    
+    ActivityLogger.log_authentication(action, user_id, success, description)
 
 
 def get_role_permissions(role):

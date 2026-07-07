@@ -3,17 +3,54 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ isOpen, setIsOpen }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isSuperAdmin, canAccessGymManagement } = useAuth();
 
-  const links = [
-    { name: 'Dashboard', path: '/dashboard', icon: '📊' },
+  // Base navigation links available to all users
+  const baseLinks = [
+    { name: 'Dashboard', path: '/dashboard', icon: '📊' }
+  ];
+
+  // Super Admin specific navigation links
+  const superAdminLinks = [
+    { name: 'Platform Dashboard', path: '/admin/dashboard', icon: '🌐' },
+    { name: 'Gym Management', path: '/admin/gyms', icon: '🏢' },
+    { name: 'Subscriptions', path: '/admin/subscriptions', icon: '💳' },
+    { name: 'User Management', path: '/admin/users', icon: '👤' },
+    { name: 'System Settings', path: '/admin/settings', icon: '⚙️' },
+    { name: 'Activity Logs', path: '/admin/logs', icon: '📋' }
+  ];
+
+  // Gym management links for gym owners and super admins
+  const gymManagementLinks = [
     { name: 'Members', path: '/members', icon: '👥' },
     { name: 'Membership Plans', path: '/membership-plans', icon: '💳' },
     { name: 'Payments', path: '/payments', icon: '💰' },
     { name: 'Attendance', path: '/attendance', icon: '📅' },
     { name: 'Trainers & Plans', path: '/plans', icon: '💪' },
-    { name: 'Settings', path: '/settings', icon: '⚙️' },
+    { name: 'Settings', path: '/settings', icon: '⚙️' }
   ];
+
+  // Build navigation links based on user role
+  const getNavigationLinks = () => {
+    let links = [...baseLinks];
+
+    // Add Super Admin links first if user is super admin
+    if (isSuperAdmin) {
+      links = [
+        ...links,
+        ...superAdminLinks,
+        { divider: true, label: 'Gym Management' }, // Section divider
+        ...gymManagementLinks
+      ];
+    } else if (canAccessGymManagement) {
+      // Add gym management links for gym owners
+      links = [...links, ...gymManagementLinks];
+    }
+
+    return links;
+  };
+
+  const links = getNavigationLinks();
 
   return (
     <>
@@ -26,6 +63,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
       )}
 
       <aside
+        role="complementary"
         className={`w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 text-gray-800 z-50 transition-transform duration-300 shadow-lg ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
@@ -48,34 +86,62 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
         {/* Navigation menu */}
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-          {links.map((link) => (
-            <NavLink
-              key={link.name}
-              to={link.path}
-              onClick={() => setIsOpen(false)} // Close sidebar on nav click on mobile
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-orange-500 text-white shadow-md'
-                    : 'hover:bg-orange-50 hover:text-orange-600'
-                }`
-              }
-            >
-              <span className="text-lg">{link.icon}</span>
-              <span>{link.name}</span>
-            </NavLink>
-          ))}
+          {links.map((link, index) => {
+            // Handle section dividers
+            if (link.divider) {
+              return (
+                <div key={`divider-${index}`} className="py-2">
+                  <div className="border-t border-gray-200 my-2"></div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2">
+                    {link.label}
+                  </p>
+                </div>
+              );
+            }
+
+            // Regular navigation links
+            return (
+              <NavLink
+                key={link.name}
+                to={link.path}
+                onClick={() => setIsOpen(false)} // Close sidebar on nav click on mobile
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-orange-500 text-white shadow-md'
+                      : 'hover:bg-orange-50 hover:text-orange-600'
+                  }`
+                }
+              >
+                <span className="text-lg">{link.icon}</span>
+                <span>{link.name}</span>
+              </NavLink>
+            );
+          })}
         </nav>
 
         {/* Logged in User Profile area */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center font-bold text-orange-600 uppercase">
+            <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold uppercase ${
+              isSuperAdmin 
+                ? 'bg-red-100 border-red-200 text-red-600' 
+                : 'bg-orange-100 border-orange-200 text-orange-600'
+            }`}>
               {user?.name?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
-              <p className="text-xs text-gray-600 truncate capitalize">{user?.role?.replace('_', ' ')}</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs text-gray-600 truncate capitalize">
+                  {user?.role?.replace('_', ' ')}
+                </p>
+                {isSuperAdmin && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                    Admin
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button

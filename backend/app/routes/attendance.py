@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_, desc, func, and_
 from app.extensions import db
 from app.models import Attendance, Member
+from app.activity_logging import ActivityLogger
 from datetime import datetime, date, timedelta
 import uuid
 
@@ -68,6 +69,9 @@ def list_attendance():
     # Order by check-in time (newest first) and limit for safety
     attendance_records = query.order_by(desc(Attendance.check_in_time)).limit(100).all()
     
+    # Log the view operation
+    ActivityLogger.log_view('attendance', view_type='list', gym_id=gym_id)
+    
     return jsonify({
         'attendance': [record.to_dict() for record in attendance_records]
     }), 200
@@ -125,6 +129,20 @@ def create_attendance():
         db.session.add(new_attendance)
         db.session.commit()
         
+        # Log the check-in operation
+        member_name = f"{member.first_name} {member.last_name}".strip()
+        ActivityLogger.log_create(
+            'attendance',
+            new_attendance.id,
+            entity_name=f"Check-in: {member_name}",
+            gym_id=gym_id,
+            extra_data={
+                'action': 'check_in',
+                'member_name': member_name,
+                'check_in_time': check_in_time.isoformat()
+            }
+        )
+        
         return jsonify({
             'message': 'Check-in recorded successfully',
             'attendance': new_attendance.to_dict()
@@ -172,6 +190,16 @@ def checkout_attendance(attendance_id):
             attendance.notes = data['notes']
         
         db.session.commit()
+        
+        # Log the check-out operation
+        member_name = f"{attendance.member.first_name} {attendance.member.last_name}".strip() if attendance.member else "Unknown Member"
+        ActivityLogger.log_update(
+            'attendance',
+            attendance_id,
+            changes={'status': {'old': 'Checked In', 'new': 'Checked Out'}},
+            entity_name=f"Check-out: {member_name}",
+            gym_id=gym_id
+        )
         
         return jsonify({
             'message': 'Check-out recorded successfully',

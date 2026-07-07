@@ -1,5 +1,5 @@
 """
-Super Admin routes for platform management.
+Super Admin routes for platform management with comprehensive error handling.
 Handles gym management, platform analytics, user oversight, and system administration.
 """
 
@@ -8,6 +8,8 @@ from sqlalchemy import func, desc, and_, or_
 from datetime import datetime, date, timedelta
 from app.extensions import db
 from app.auth_utils import super_admin_required, get_current_user_id
+from app.super_admin_errors import handle_super_admin_errors, SuperAdminError, validate_super_admin_operation
+from app.activity_logging import ActivityLogger
 from app.models import Gym, User, Member, Payment, Attendance
 from app.super_admin_models import ActivityLog, SystemSettings, GymSubscription
 
@@ -2142,3 +2144,166 @@ def get_user_permissions(role):
     }
     
     return permissions.get(role, permissions['member'])
+# ===
+==========================================================================
+# SYSTEM SETTINGS ENDPOINTS
+# =============================================================================
+
+@admin_bp.route('/settings', methods=['GET'])
+@super_admin_required
+def list_system_settings():
+    """Get all system settings"""
+    try:
+        settings = SystemSettings.query.all()
+        
+        return jsonify({
+            'settings': [setting.to_dict() for setting in settings],
+            'count': len(settings)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch system settings', 'details': str(e)}), 500
+
+
+@admin_bp.route('/settings/<string:setting_key>', methods=['GET'])
+@super_admin_required 
+def get_system_setting(setting_key):
+    """Get a specific system setting"""
+    try:
+        setting = SystemSettings.query.filter_by(setting_key=setting_key).first()
+        
+        if not setting:
+            return jsonify({'error': 'Setting not found'}), 404
+            
+        return jsonify(setting.to_dict())
+        
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch system setting', 'details': str(e)}), 500
+
+
+@admin_bp.route('/settings', methods=['POST'])
+@super_admin_required
+def create_system_setting():
+    """Create a new system setting"""
+    try:
+        data = request.get_json() or {}
+        admin_user_id = get_current_user_id()
+        
+        # Required fields validation
+        required_fields = ['setting_key', 'setting_value', 'setting_type']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Check if setting already exists
+        existing_setting = SystemSettings.query.filter_by(setting_key=data['setting_key']).first()
+        if existing_setting:
+            return jsonify({'error': 'Setting key already exists'}), 400
+        
+        # Create setting
+        setting = SystemSettings(
+            setting_key=data['setting_key'],
+            setting_value=data['setting_value'],
+            setting_type=data['setting_type'],
+            description=data.get('description'),
+            updated_by=admin_user_id
+        )
+        
+        db.session.add(setting)
+        db.session.commit()
+        
+        # Log the action
+        log_activity(
+            user_id=admin_user_id,
+            action_type='create',
+            entity_type='system_setting',
+            entity_id=setting.id,
+            description=f'Created system setting: {setting.setting_key}'
+        )
+        
+        return jsonify({
+            'message': 'System setting created successfully',
+            'setting': setting.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create system setting', 'details': str(e)}), 500
+
+
+@admin_bp.route('/settings/<string:setting_key>', methods=['PUT'])
+@super_admin_required
+def update_system_setting(setting_key):
+    """Update a system setting"""
+    try:
+        setting = SystemSettings.query.filter_by(setting_key=setting_key).first()
+        if not setting:
+            return jsonify({'error': 'Setting not found'}), 404
+            
+        data = request.get_json() or {}
+        admin_user_id = get_current_user_id()
+        
+        # Store old value for logging
+        old_value = setting.setting_value
+        
+        # Update fields
+        if 'setting_value' in data:
+            setting.setting_value = data['setting_value']
+        if 'setting_type' in data:
+            setting.setting_type = data['setting_type']
+        if 'description' in data:
+            setting.description = data['description']
+            
+        setting.updated_by = admin_user_id
+        setting.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        # Log the action
+        log_activity(
+            user_id=admin_user_id,
+            action_type='update',
+            entity_type='system_setting',
+            entity_id=setting.id,
+            description=f'Updated system setting {setting_key}: {old_value} → {setting.setting_value}'
+        )
+        
+        return jsonify({
+            'message': 'System setting updated successfully',
+            'setting': setting.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update system setting', 'details': str(e)}), 500
+
+
+@admin_bp.route('/settings/<string:setting_key>', methods=['DELETE'])
+@super_admin_required
+def delete_system_setting(setting_key):
+    """Delete a system setting"""
+    try:
+        setting = SystemSettings.query.filter_by(setting_key=setting_key).first()
+        if not setting:
+            return jsonify({'error': 'Setting not found'}), 404
+            
+        admin_user_id = get_current_user_id()
+        
+        # Log before deletion
+        log_activity(
+            user_id=admin_user_id,
+            action_type='delete',
+            entity_type='system_setting',
+            entity_id=setting.id,
+            description=f'Deleted system setting: {setting_key}',
+            severity='warning'
+        )
+        
+        db.session.delete(setting)
+        db.session.commit()
+        
+        return jsonify({'message': 'System setting deleted successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete system setting', 'details': str(e)}), 500

@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_
 from app.extensions import db
 from app.models import MembershipPlan
+from app.activity_logging import ActivityLogger
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -44,6 +45,9 @@ def list_membership_plans():
     
     # Order by created date (newest first) and limit for safety
     plans = query.order_by(MembershipPlan.created_at.desc()).limit(100).all()
+    
+    # Log the view operation
+    ActivityLogger.log_view('membership_plan', view_type='list', gym_id=gym_id)
     
     return jsonify({
         'membership_plans': [plan.to_dict() for plan in plans]
@@ -101,6 +105,19 @@ def create_membership_plan():
         db.session.add(new_plan)
         db.session.commit()
         
+        # Log the create operation
+        ActivityLogger.log_create(
+            'membership_plan',
+            new_plan.id,
+            entity_name=new_plan.plan_name,
+            gym_id=gym_id,
+            extra_data={
+                'duration': duration,
+                'price': float(price),
+                'status': new_plan.status
+            }
+        )
+        
         return jsonify({
             'message': 'Membership plan created successfully',
             'membership_plan': new_plan.to_dict()
@@ -122,6 +139,9 @@ def get_membership_plan(plan_id):
     if not plan:
         return jsonify({'error': 'Membership plan not found'}), 404
     
+    # Log the view operation
+    ActivityLogger.log_view('membership_plan', plan_id, entity_name=plan.plan_name, gym_id=gym_id)
+    
     return jsonify(plan.to_dict()), 200
 
 @membership_plans_bp.route('/<int:plan_id>', methods=['PUT'])
@@ -139,13 +159,18 @@ def update_membership_plan(plan_id):
     data = request.get_json() or {}
     
     try:
+        # Track changes for logging
+        changes = {}
+        
         # Validate and update duration if provided
         if 'duration' in data:
             try:
                 duration = int(data['duration'])
                 if duration <= 0:
                     return jsonify({'error': 'Duration must be a positive number'}), 400
-                plan.duration = duration
+                if plan.duration != duration:
+                    changes['duration'] = {'old': plan.duration, 'new': duration}
+                    plan.duration = duration
             except (ValueError, TypeError):
                 return jsonify({'error': 'Duration must be a valid number'}), 400
         
@@ -155,17 +180,33 @@ def update_membership_plan(plan_id):
                 price = Decimal(str(data['price']))
                 if price < 0:
                     return jsonify({'error': 'Price cannot be negative'}), 400
-                plan.price = price
+                if plan.price != price:
+                    changes['price'] = {'old': float(plan.price), 'new': float(price)}
+                    plan.price = price
             except (InvalidOperation, ValueError, TypeError):
                 return jsonify({'error': 'Price must be a valid number'}), 400
         
         # Update basic fields
         for field in ['plan_name', 'description', 'status']:
             if field in data:
-                setattr(plan, field, data[field])
+                old_value = getattr(plan, field)
+                new_value = data[field]
+                if old_value != new_value:
+                    changes[field] = {'old': old_value, 'new': new_value}
+                    setattr(plan, field, new_value)
         
         plan.updated_at = datetime.utcnow()
         db.session.commit()
+        
+        # Log the update operation only if there were changes
+        if changes:
+            ActivityLogger.log_update(
+                'membership_plan',
+                plan_id,
+                changes=changes,
+                entity_name=plan.plan_name,
+                gym_id=gym_id
+            )
         
         return jsonify({
             'message': 'Membership plan updated successfully',
@@ -189,8 +230,21 @@ def delete_membership_plan(plan_id):
         return jsonify({'error': 'Membership plan not found'}), 404
     
     try:
+        # Store plan name for logging before deletion
+        plan_name = plan.plan_name
+        
         db.session.delete(plan)
         db.session.commit()
+        
+        # Log the delete operation (hard delete)
+        ActivityLogger.log_delete(
+            'membership_plan',
+            plan_id,
+            entity_name=plan_name,
+            gym_id=gym_id,
+            soft_delete=False
+        )
+        
         return jsonify({'message': 'Membership plan deleted successfully'}), 200
     except Exception as e:
         db.session.rollback()
@@ -215,6 +269,15 @@ def search_membership_plans():
             MembershipPlan.description.ilike(search_pattern)
         )
     ).order_by(MembershipPlan.plan_name.asc()).limit(20).all()
+    
+    # Log the search operation
+    ActivityLogger.log_activity(
+        'search',
+        f"Searched membership plans for '{query_param}'",
+        entity_type='membership_plan',
+        gym_id=gym_id,
+        extra_data={'search_query': query_param, 'results_count': len(plans)}
+    )
     
     return jsonify({
         'membership_plans': [plan.to_dict() for plan in plans]

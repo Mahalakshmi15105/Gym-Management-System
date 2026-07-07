@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_, desc
 from app.extensions import db
 from app.models import Payment, Member, MembershipPlan
+from app.activity_logging import ActivityLogger
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import uuid
@@ -30,7 +31,7 @@ def list_payments():
     end_date = request.args.get('end_date')
     
     # Base query with multi-tenant isolation and joins
-    query = Payment.query.filter_by(gym_id=gym_id).join(Member).outerjoin(MembershipPlan)
+    query = Payment.query.filter_by(gym_id=gym_id).join(Member, Payment.member_id == Member.id).outerjoin(MembershipPlan, Payment.membership_plan_id == MembershipPlan.id)
     
     # Apply status filter
     if status_filter and status_filter != 'All':
@@ -70,6 +71,9 @@ def list_payments():
     
     # Order by payment date (newest first) and limit for safety
     payments = query.order_by(desc(Payment.payment_date), desc(Payment.created_at)).limit(100).all()
+    
+    # Log the view operation
+    ActivityLogger.log_view('payment', view_type='list', gym_id=gym_id)
     
     return jsonify({
         'payments': [payment.to_dict() for payment in payments]
@@ -153,6 +157,22 @@ def create_payment():
         db.session.add(new_payment)
         db.session.commit()
         
+        # Log the create operation
+        member_name = f"{member.first_name} {member.last_name}".strip()
+        ActivityLogger.log_create(
+            'payment',
+            new_payment.id,
+            entity_name=f"Payment for {member_name}",
+            gym_id=gym_id,
+            extra_data={
+                'amount': float(payment_amount),
+                'method': data['payment_method'],
+                'status': payment_status,
+                'member_name': member_name,
+                'transaction_id': transaction_id
+            }
+        )
+        
         return jsonify({
             'message': 'Payment recorded successfully',
             'payment': new_payment.to_dict()
@@ -174,6 +194,10 @@ def get_payment(payment_id):
     if not payment:
         return jsonify({'error': 'Payment not found'}), 404
     
+    # Log the view operation
+    member_name = f"{payment.member.first_name} {payment.member.last_name}".strip() if payment.member else "Unknown Member"
+    ActivityLogger.log_view('payment', payment_id, entity_name=f"Payment for {member_name}", gym_id=gym_id)
+    
     return jsonify(payment.to_dict()), 200
 
 @payments_bp.route('/<int:payment_id>', methods=['PUT'])
@@ -191,13 +215,18 @@ def update_payment(payment_id):
     data = request.get_json() or {}
     
     try:
+        # Track changes for logging
+        changes = {}
+        
         # Validate and update payment amount if provided
         if 'payment_amount' in data:
             try:
                 payment_amount = Decimal(str(data['payment_amount']))
                 if payment_amount <= 0:
                     return jsonify({'error': 'Payment amount must be positive'}), 400
-                payment.payment_amount = payment_amount
+                if payment.payment_amount != payment_amount:
+                    changes['payment_amount'] = {'old': float(payment.payment_amount), 'new': float(payment_amount)}
+                    payment.payment_amount = payment_amount
             except (InvalidOperation, ValueError, TypeError):
                 return jsonify({'error': 'Payment amount must be a valid number'}), 400
         
@@ -205,7 +234,9 @@ def update_payment(payment_id):
         if 'payment_date' in data:
             try:
                 payment_date = datetime.strptime(data['payment_date'], '%Y-%m-%d').date()
-                payment.payment_date = payment_date
+                if payment.payment_date != payment_date:
+                    changes['payment_date'] = {'old': payment.payment_date.isoformat(), 'new': payment_date.isoformat()}
+                    payment.payment_date = payment_date
             except ValueError:
                 return jsonify({'error': 'Payment date must be in YYYY-MM-DD format'}), 400
         
@@ -214,22 +245,41 @@ def update_payment(payment_id):
             valid_methods = ['Cash', 'UPI', 'Card', 'Bank Transfer']
             if data['payment_method'] not in valid_methods:
                 return jsonify({'error': f'Payment method must be one of: {", ".join(valid_methods)}'}), 400
-            payment.payment_method = data['payment_method']
+            if payment.payment_method != data['payment_method']:
+                changes['payment_method'] = {'old': payment.payment_method, 'new': data['payment_method']}
+                payment.payment_method = data['payment_method']
         
         # Validate and update payment status if provided
         if 'payment_status' in data:
             valid_statuses = ['Paid', 'Pending', 'Failed']
             if data['payment_status'] not in valid_statuses:
                 return jsonify({'error': f'Payment status must be one of: {", ".join(valid_statuses)}'}), 400
-            payment.payment_status = data['payment_status']
+            if payment.payment_status != data['payment_status']:
+                changes['payment_status'] = {'old': payment.payment_status, 'new': data['payment_status']}
+                payment.payment_status = data['payment_status']
         
         # Update other fields
         for field in ['transaction_id', 'notes']:
             if field in data:
-                setattr(payment, field, data[field])
+                old_value = getattr(payment, field)
+                new_value = data[field]
+                if old_value != new_value:
+                    changes[field] = {'old': old_value, 'new': new_value}
+                    setattr(payment, field, new_value)
         
         payment.updated_at = datetime.utcnow()
         db.session.commit()
+        
+        # Log the update operation only if there were changes
+        if changes:
+            member_name = f"{payment.member.first_name} {payment.member.last_name}".strip() if payment.member else "Unknown Member"
+            ActivityLogger.log_update(
+                'payment',
+                payment_id,
+                changes=changes,
+                entity_name=f"Payment for {member_name}",
+                gym_id=gym_id
+            )
         
         return jsonify({
             'message': 'Payment updated successfully',
@@ -253,8 +303,26 @@ def delete_payment(payment_id):
         return jsonify({'error': 'Payment not found'}), 404
     
     try:
+        # Store payment details for logging before deletion
+        member_name = f"{payment.member.first_name} {payment.member.last_name}".strip() if payment.member else "Unknown Member"
+        payment_details = {
+            'amount': float(payment.payment_amount),
+            'transaction_id': payment.transaction_id,
+            'member_name': member_name
+        }
+        
         db.session.delete(payment)
         db.session.commit()
+        
+        # Log the delete operation (hard delete)
+        ActivityLogger.log_delete(
+            'payment',
+            payment_id,
+            entity_name=f"Payment for {member_name}",
+            gym_id=gym_id,
+            soft_delete=False
+        )
+        
         return jsonify({'message': 'Payment deleted successfully'}), 200
     except Exception as e:
         db.session.rollback()
@@ -282,6 +350,15 @@ def search_payments():
             MembershipPlan.plan_name.ilike(search_pattern)
         )
     ).order_by(desc(Payment.payment_date)).limit(20).all()
+    
+    # Log the search operation
+    ActivityLogger.log_activity(
+        'search',
+        f"Searched payments for '{query_param}'",
+        entity_type='payment',
+        gym_id=gym_id,
+        extra_data={'search_query': query_param, 'results_count': len(payments)}
+    )
     
     return jsonify({
         'payments': [payment.to_dict() for payment in payments]
@@ -343,5 +420,16 @@ def generate_receipt(payment_id):
         'gym_name': payment.gym.name if payment.gym else 'FlexiGym',
         'generated_at': datetime.utcnow().isoformat()
     }
+    
+    # Log the receipt generation
+    member_name = f"{payment.member.first_name} {payment.member.last_name}".strip() if payment.member else "Unknown Member"
+    ActivityLogger.log_activity(
+        'export',
+        f"Generated payment receipt for {member_name}",
+        entity_type='payment',
+        entity_id=payment_id,
+        gym_id=gym_id,
+        extra_data={'receipt_number': receipt_data['receipt_number'], 'export_format': 'json'}
+    )
     
     return jsonify(receipt_data), 200

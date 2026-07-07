@@ -1,15 +1,11 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000';
-
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+  timeout: 10000,
 });
 
-// Request interceptor to automatically add the JWT token to request headers
+// Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('flexigym_token');
@@ -19,6 +15,22 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor to handle token expiry
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear auth data and redirect to login
+      localStorage.removeItem('flexigym_token');
+      localStorage.removeItem('flexigym_user');
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );

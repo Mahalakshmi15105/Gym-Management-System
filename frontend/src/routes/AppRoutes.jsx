@@ -24,6 +24,12 @@ import CheckInPage from '../pages/CheckInPage';
 import ViewAttendancePage from '../pages/ViewAttendancePage';
 import EditAttendancePage from '../pages/EditAttendancePage';
 import AttendanceReportsPage from '../pages/AttendanceReportsPage';
+import ActivityLogs from '../pages/ActivityLogs';
+import SuperAdminDashboard from '../pages/SuperAdminDashboard';
+import GymManagement from '../pages/GymManagement';
+import SubscriptionManagement from '../pages/SubscriptionManagement';
+import UserManagement from '../pages/UserManagement';
+import SystemSettings from '../pages/SystemSettings';
 
 // Prevents logged-in users from accessing landing/login/register pages.
 function PublicOnlyRoute({ children }) {
@@ -71,57 +77,12 @@ export default function AppRoutes() {
           <SuperAdminRoute>
             <Routes>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={
-                <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">🌐 Super Admin Dashboard</h2>
-                  <p className="text-sm text-gray-600">
-                    Platform-wide analytics, gym management, and system administration will be available here.
-                  </p>
-                  <p className="text-xs text-orange-500 mt-4">
-                    Super Admin interface is under development.
-                  </p>
-                </div>
-              } />
-              <Route path="gyms" element={
-                <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">🏢 Gym Management</h2>
-                  <p className="text-sm text-gray-600">
-                    Approve, suspend, and manage all gyms on the platform.
-                  </p>
-                </div>
-              } />
-              <Route path="subscriptions" element={
-                <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">💳 Subscription Management</h2>
-                  <p className="text-sm text-gray-600">
-                    Manage subscription plans, billing, and payment status across all gyms.
-                  </p>
-                </div>
-              } />
-              <Route path="users" element={
-                <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">👥 User Management</h2>
-                  <p className="text-sm text-gray-600">
-                    Manage user accounts, roles, and permissions across the platform.
-                  </p>
-                </div>
-              } />
-              <Route path="settings" element={
-                <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">⚙️ System Settings</h2>
-                  <p className="text-sm text-gray-600">
-                    Configure platform-wide settings and system parameters.
-                  </p>
-                </div>
-              } />
-              <Route path="logs" element={
-                <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">📋 Activity Logs</h2>
-                  <p className="text-sm text-gray-600">
-                    Monitor platform activity and audit trails.
-                  </p>
-                </div>
-              } />
+              <Route path="dashboard" element={<SuperAdminDashboard />} />
+              <Route path="gyms" element={<GymManagement />} />
+              <Route path="subscriptions" element={<SubscriptionManagement />} />
+              <Route path="users" element={<UserManagement />} />
+              <Route path="settings" element={<SystemSettings />} />
+              <Route path="logs" element={<ActivityLogs />} />
             </Routes>
           </SuperAdminRoute>
         } />

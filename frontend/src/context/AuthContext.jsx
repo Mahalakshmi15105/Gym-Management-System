@@ -12,16 +12,25 @@ export const AuthProvider = ({ children }) => {
     const storedUser = localStorage.getItem('flexigym_user');
 
     if (storedToken && storedUser) {
-      setToken(storedToken);
       try {
         const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
         
         // Validate token expiry and role consistency
         if (isTokenExpired(storedToken)) {
           logout();
           return;
         }
+        
+        // Validate token claims match stored user data
+        const tokenClaims = getTokenClaims(storedToken);
+        if (!validateTokenUserMatch(tokenClaims, parsedUser)) {
+          console.warn('Token claims do not match stored user data, logging out for security');
+          logout();
+          return;
+        }
+        
+        setToken(storedToken);
+        setUser(parsedUser);
       } catch (e) {
         console.error('Error parsing stored user data:', e);
         localStorage.removeItem('flexigym_user');
@@ -145,6 +154,24 @@ const isTokenExpired = (token) => {
   } catch (e) {
     return true; // If we can't parse the token, consider it expired
   }
+};
+
+const getTokenClaims = (token) => {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
+};
+
+const validateTokenUserMatch = (tokenClaims, userData) => {
+  if (!tokenClaims || !userData) return false;
+  
+  // Validate essential fields match between token and stored user data
+  const roleMatches = tokenClaims.role === userData.role;
+  const gymIdMatches = tokenClaims.gym_id === userData.gym_id;
+  
+  return roleMatches && gymIdMatches;
 };
 
 const getRolePermissions = (role) => {
